@@ -4,6 +4,7 @@ import { auth } from "@clerk/nextjs";
 import { NextResponse } from "next/server";
 import { ChatCompletionRequestMessage, Configuration, OpenAIApi } from "openai";
 
+// export const runtime = 'edge';
 
 const configuration = new Configuration({
     apiKey: process.env.OPENAI_API_KEY,
@@ -15,6 +16,8 @@ const instructMessage: ChatCompletionRequestMessage = {
     role: "system",
     content: "You are an Expert code generator. You must answer only in markdown code snippets. Use code comments for explanations. You will ask the user which language to generate the code in, if not provided already. You will refrain from answering questions that are not related to code / coding."
 }
+
+
 
 export async function POST(req: Request) {
 

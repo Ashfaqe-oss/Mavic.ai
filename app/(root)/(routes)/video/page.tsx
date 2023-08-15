@@ -3,8 +3,8 @@ import * as z from "zod";
 
 import axios from "axios";
 import Heading from "@/components/heading";
-import { Code } from "lucide-react";
-import React, { useEffect, useState } from "react";
+import { Code, Download } from "lucide-react";
+import React, { useEffect, useMemo, useState } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { formSchema } from "./constants";
@@ -28,48 +28,77 @@ import { useProModal } from "@/hooks/use-pro-modal";
 import toast from "react-hot-toast";
 import { useUser } from "@clerk/nextjs";
 import { getCookie, setCookie } from "cookies-next";
+import { Card, CardFooter } from "@/components/ui/card";
 
 const VideoPage = () => {
-  const [video, setVideo] = useState<string>();
-
+  const [videos, setVideos] = useState<string[]>([]);
+  const { user } = useUser();
   const router = useRouter();
   const proModal = useProModal();
 
-  const { user } = useUser();
-
-  const cookieName = `storedVideoURL-${user?.id}`;
-
-  useEffect(() => {
-    const storedVideoURL = getCookie(cookieName);
-    if (typeof storedVideoURL === "string" && !storedVideoURL) {
-      setVideo(storedVideoURL);
-    }
-}, [cookieName]);
-
   const form = useForm<z.infer<typeof formSchema>>({
     resolver: zodResolver(formSchema),
-    defaultValues: {
-      prompt: "",
-    },
+    defaultValues: { prompt: "" },
   });
-
-  //use form has its own loading state
 
   const isLoading = form.formState.isSubmitting;
 
+  const defaultVideos = useMemo(
+    () => [
+      // Add your default video URLs here if you have any
+      "https://pbxt.replicate.delivery/F8m7Kop7VKItPd6e0NeiZPCeF4A3obyjORpZ5KzbVzLbWi0iA/output-0.mp4",
+      "https://replicate.delivery/pbxt/mxkex5K3JZUKPKlni9KjpKKOY9v1sNKxechcErwtkVOxfi0iA/output-0.mp4",
+      "https://pbxt.replicate.delivery/l8iVjqoRMlqNAFax1GOiouailR5ohit6DEiVrT9wFTFemItIA/output-0.mp4",
+    ],
+    []
+  );
+
+  const combineUniqueVideos = (...videoArrays: string[][]) => {
+    const combinedSet = new Set<string>();
+    videoArrays.forEach((array = []) => { // Providing a default value here
+      array.forEach((video) => {
+        combinedSet.add(video);
+      });
+    });
+    return Array.from(combinedSet);
+  };
+
+  useEffect(() => {
+    async function fetchVideos() {
+      try {
+        const response = await axios.get(`/api/video/db`);
+       
+        if (response.data && Array.isArray(response.data.videos)) {
+          const combinedVideos = combineUniqueVideos(
+            response.data.videos || [], // Providing a default value here
+            defaultVideos
+          );
+          setVideos(combinedVideos);
+        }
+      } catch (error) {
+        console.error("Failed to fetch videos:", error);
+      }
+    }
+
+    if (user?.id) {
+      fetchVideos();
+    }
+  }, [user?.id, defaultVideos]);
+
   const onSubmit = async (data: z.infer<typeof formSchema>) => {
     try {
-      console.log(video);
-
-      setVideo(undefined);
+      console.log(videos);
 
       const response = await axios.post("/api/video", data);
+      const newVideo = response?.data[0];
 
-      setVideo(response.data[0]);
+      await axios.post("/api/video/db", {
+        url: newVideo,
+      });
 
-      setCookie(cookieName, response.data[0]);
+      setVideos((prev) => [newVideo, ...prev]);
+
       toast.success("Video generated successfully");
-
       form.reset();
     } catch (error: any) {
       if (error?.response?.status === 402) {
@@ -130,7 +159,7 @@ const VideoPage = () => {
                       />
                     </FormControl>
                     <FormDescription>
-                      Briefly describe of how and what you want your music to
+                      Briefly describe of how and what you want your video to
                       be/have
                     </FormDescription>
                     <FormMessage />
@@ -162,23 +191,42 @@ const VideoPage = () => {
               />
             </div>
           )}
-          {!video && !isLoading && (
+
+          {!videos && !isLoading && (
             <Empty
               label="No video generated."
               label2="This is a stateless feature.. as it is still in Beta "
             />
           )}
-          <div>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-8">
             {/* video here  */}
-            {video && (
-              <video
-                controls
-                className="w-full aspect-video bg-black rounded-ld border mt-8"
-              >
-                <source src={video} />
-              </video>
-            )}
+            {videos &&
+              videos.map((videoUrl, idx) => (
+                <Card key={idx} >
+                  <div className="aspect-square relative">
+                    <video controls className="w-full mt-8">
+                      <source src={videoUrl} />
+                    </video>
+                  </div>
+                  {/* <CardFooter className="p-2">
+                    <Button
+                      onClick={() => window.open(videoUrl)}
+                      variant="secondary"
+                      className="w-full"
+                    >
+                      <Download className="h-4 w-4 mr-2">Download</Download>
+                    </Button>
+                  </CardFooter> */}
+                </Card>
+              ))}
           </div>
+        </div>
+
+        <div className="m-auto my-4 mx-2 py-6 flex items-center">
+          <p className="m-auto mt-2 text-sm text-muted-foreground">
+            {" "}
+            Some Previously Generated examples{" "}
+          </p>
         </div>
       </div>
     </div>

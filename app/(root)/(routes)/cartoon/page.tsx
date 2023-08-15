@@ -4,7 +4,7 @@ import * as z from "zod";
 import axios from "axios";
 import Heading from "@/components/heading";
 import { Code, Download } from "lucide-react";
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { formSchema } from "./constants";
@@ -28,35 +28,57 @@ import { useUser } from "@clerk/nextjs";
 import { getCookie, setCookie } from "cookies-next";
 
 const CartoonPage = () => {
-  const [cartoon, setCartoon] = useState("https://pbxt.replicate.delivery/e4M7lfSUAAi4iUNnF6M6MbJeqBYZbYf5BvXn2oOWT4K3NQmFB/0-61341-remb.png");
-  const [image, setImage] = useState("");
+  const [cartoons, setCartoons] = useState<string[]>([]);
   const router = useRouter();
-  
   const proModal = useProModal();
-
-  
   const { user } = useUser();
-
-  const cookieName = `cartoonURL-${user?.id}`;
-
-  useEffect(() => {
-    const storedCartoonURL = getCookie(cookieName);
-    if (typeof storedCartoonURL === "string") {
-      setImage(storedCartoonURL);
-    }
-}, [cookieName]);
+  const [image, setImage] = useState("");
 
   const form = useForm<z.infer<typeof formSchema>>({
     resolver: zodResolver(formSchema),
-    defaultValues: {
-      prompt: "",
-    },
+    defaultValues: { prompt: "" },
   });
 
-  //use form has its own loading state
-
   const isLoading = form.formState.isSubmitting;
-  console.log(cartoon)
+
+  const defaultCartoons = useMemo(
+    () => [
+      "https://pbxt.replicate.delivery/e4M7lfSUAAi4iUNnF6M6MbJeqBYZbYf5BvXn2oOWT4K3NQmFB/0-61341-remb.png",
+      "https://pbxt.replicate.delivery/qFXLPsQmvdraK5UNZQhim6mb80RRjUXsyYy3mrayCG6tAkWE/0-36035-remb.png",
+    ],
+    []
+  );
+
+  const combineUniqueCartoons = (...cartoonArrays: string[][]) => {
+    const combinedSet = new Set<string>();
+    cartoonArrays.forEach((array) => {
+      array.forEach((cartoon) => {
+        combinedSet.add(cartoon);
+      });
+    });
+    return Array.from(combinedSet);
+  };
+
+  useEffect(() => {
+    async function fetchCartoons() {
+      try {
+        const response = await axios.get(`/api/cartoon/db`);
+        if (response.data && Array.isArray(response.data.cartoons)) {
+          const combinedCartoons = combineUniqueCartoons(
+            response.data.cartoons,
+            defaultCartoons
+          );
+          setCartoons(combinedCartoons);
+        }
+      } catch (error) {
+        console.error("Failed to fetch images:", error);
+      }
+    }
+
+    if (user?.id) {
+      fetchCartoons();
+    }
+  }, [user?.id, defaultCartoons]);
 
   const onSubmit = async (data: z.infer<typeof formSchema>) => {
     try {
@@ -66,17 +88,25 @@ const CartoonPage = () => {
       };
 
       const response = await axios.post("/api/cartoon", payload);
-      // console.log(response);
-      setCartoon(response.data[0]);
-      
-      setCookie(cookieName, JSON.stringify(response.data[0]));
-      
-      toast.success("Cartoon generated successfully")
+      const cartoon = response?.data[0];
 
+      // Save the cartoon URL to the database
+      await axios.post("/api/cartoon/db", {
+        userId: user?.id,
+        url: cartoon,
+      });
+
+      // setCartoons(prev => [cartoon, ...prev]);
+      setCartoons((prev) =>
+        combineUniqueCartoons([cartoon], prev, defaultCartoons)
+      );
+
+      toast.success("Cartoon generated successfully");
       form.reset();
-    } catch (error:any) {
+    } catch (error: any) {
       if (error?.response?.status === 402) {
         proModal.onOpen();
+        toast.error("You have used up your limit. Please upgrade to continue.");
       } else {
         toast.error("Something went wrong.");
       }
@@ -167,30 +197,38 @@ const CartoonPage = () => {
           {/* Message content */}
           {isLoading && (
             <div className="p-8 rounded-lg w-full flex items-center justify-center bg-secondary">
-              <Loader txt={"Cold starts can take upto 2 mins.. Pls come back later"}/>
+              <Loader
+                txt={"Cold starts can take upto 2 mins.. Pls come back later"}
+              />
             </div>
           )}
-          {cartoon.length == 0 && !isLoading && <Empty label="No cartoon generated." />}
-          {cartoon.length > 0 && (
+          {cartoons.length == 0 && !isLoading && (
+            <Empty label="No cartoon generated." />
+          )}
+          {cartoons.length > 0 && (
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 mt-8">
-
-              <Card className="rounded-lg overflow-hidden">
-                <div className="relative aspect-square">
-                  <Image fill alt="Generated" src={cartoon} />
-                </div>
-                <CardFooter className="p-2">
-                  <Button
-                    onClick={() => window.open(cartoon)}
-                    variant="secondary"
-                    className="w-full"
-                  >
-                    <Download className="h-4 w-4 mr-2" />
-                    Download
-                  </Button>
-                </CardFooter>
-              </Card>
+              {cartoons.map((cartoon, index) => (
+                <Card key={index} className="rounded-lg overflow-hidden">
+                  <div className="relative aspect-square">
+                    <Image fill alt="Generated" src={cartoon} />
+                  </div>
+                  <CardFooter className="p-2">
+                    <Button
+                      onClick={() => window.open(cartoon)}
+                      variant="secondary"
+                      className="w-full"
+                    >
+                      <Download className="h-4 w-4 mr-2" />
+                      Download
+                    </Button>
+                  </CardFooter>
+                </Card>
+              ))}
             </div>
           )}
+        </div>
+        <div className="m-auto my-4 mx-2 py-6 flex items-center">
+          <p className="m-auto mt-2 text-sm text-muted-foreground"> Some Previously Generated examples </p>
         </div>
       </div>
     </div>

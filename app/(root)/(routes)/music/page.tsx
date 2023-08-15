@@ -4,7 +4,7 @@ import * as z from "zod";
 import axios from "axios";
 import Heading from "@/components/heading";
 import { Code } from "lucide-react";
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { formSchema } from "./constants";
@@ -30,21 +30,11 @@ import { setCookie, getCookie } from "cookies-next";
 import { useUser } from "@clerk/nextjs";
 
 const MusicPage = () => {
-  const [music, setMusic] = useState<string>();
+  const [musics, setMusics] = useState<string[]>([]);
   const { user } = useUser();
-
-  const cookieName = `storedMusicURL-${user?.id}`;
-
-  useEffect(() => {
-    const storedMusicURL = getCookie(cookieName);
-    if (typeof storedMusicURL === "string" && !storedMusicURL) {
-      setMusic(JSON.parse(storedMusicURL));
-    }
-  }, [cookieName]); // Empty dependency array ensures this runs only once when the component mounts
-
   const router = useRouter();
-
   const proModal = useProModal();
+
 
   const form = useForm<z.infer<typeof formSchema>>({
     resolver: zodResolver(formSchema),
@@ -57,18 +47,64 @@ const MusicPage = () => {
 
   const isLoading = form.formState.isSubmitting;
 
+  const defaultMusics = useMemo(() => [
+    // You can add your default music URLs here
+    "https://pbxt.replicate.delivery/ffB96h9cflFzrIlUhgQLgP9pUVvVY0ns98hiJPSzfMUyuCpFB/gen_sound.wav",
+    "https://pbxt.replicate.delivery/d1HQA2VIT1JUF5AbvnKKPm2AuaUreK0fkML0XpmIcPV1xQaRA/gen_sound.wav"
+  ], []);
+
+  const combineUniqueMusics = (...musicArrays: string[][]) => {
+    const combinedSet = new Set<string>();
+    musicArrays.forEach((array) => {
+      array.forEach((music) => {
+        combinedSet.add(music);
+      });
+    });
+    return Array.from(combinedSet);
+  };
+
+  useEffect(() => {
+    async function fetchMusics() {
+      try {
+        const response = await axios.get(`/api/music/db`);
+        // console.log(response)
+        if (response.data && Array.isArray(response.data.musics)) {
+          // setMusics(prev => [...new Set([...prev, ...response.data.musics, ...defaultMusics])]);
+          const combinedMusics = combineUniqueMusics(
+            response.data.musics,
+            defaultMusics
+          );
+          setMusics(combinedMusics);
+        }
+      } catch (error) {
+        console.error("Failed to fetch musics:", error);
+      }
+    }
+
+    if (user?.id) {
+      fetchMusics();
+    }
+  }, [user?.id, defaultMusics]);
+
+  // console.log(musics)
+
   const onSubmit = async (data: z.infer<typeof formSchema>) => {
     try {
-      console.log(music);
-
-      setMusic(undefined);
+      // console.log(musics);
 
       const response = await axios.post("/api/music", data);
+      // console.log(response)
 
-      setMusic(response.data.audio);
+      const newMusic = response?.data.audio;
 
-      setCookie(cookieName, JSON.stringify(response.data.audio));
+      // console.log(newMusic)
 
+      // Save the music URL to the database
+      await axios.post("/api/music/db", {
+        url: newMusic
+      });
+
+      setMusics(prev => [newMusic, ...prev]);
       toast.success("Music generated successfully");
       form.reset();
     } catch (error: any) {
@@ -81,7 +117,7 @@ const MusicPage = () => {
         toast.error("Something went wrong.");
       }
     } finally {
-      router.refresh();
+      // router.refresh();
       form.reset();
     }
   };
@@ -162,7 +198,7 @@ const MusicPage = () => {
               />
             </div>
           )}
-          {!music && !isLoading && (
+          {!musics && !isLoading && (
             <Empty
               label="No Music generated."
               label2="This is a stateless feature.. as it is still in Beta "
@@ -170,12 +206,17 @@ const MusicPage = () => {
           )}
           <div>
             {/* Music here  */}
-            {music && (
-              <audio controls className="w-full mt-8">
-                <source src={music} />
-              </audio>
-            )}
+            {musics &&
+              musics.map((musicUrl, idx) => (
+                <audio key={idx} controls className="w-full mt-8">
+                  <source src={musicUrl} />
+                </audio>
+              ))}
           </div>
+        </div>
+
+        <div className="m-auto my-4 mx-2 py-6 flex items-center">
+          <p className="m-auto mt-2 text-sm text-muted-foreground"> Some Previously Generated examples </p>
         </div>
       </div>
     </div>

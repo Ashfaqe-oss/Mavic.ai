@@ -12,8 +12,7 @@ export async function POST(req: Request) {
   try {
     const { userId } = auth();
     const body = await req.json();
-    const { prompt, amount, resolution } = body;
-    const [width, height] = resolution.split('x');
+    const { prompt } = body;
 
     if (!userId) {
       return new NextResponse("Unauthorized", { status: 401 });
@@ -38,9 +37,6 @@ export async function POST(req: Request) {
       {
         input: {
           prompt: prompt,
-        //   width: width,
-        //   height: height,
-        //   num_outputs: amount
         },
       }
     );

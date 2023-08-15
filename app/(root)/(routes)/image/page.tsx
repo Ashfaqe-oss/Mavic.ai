@@ -4,7 +4,7 @@ import * as z from "zod";
 import axios from "axios";
 import Heading from "@/components/heading";
 import { Code, Download } from "lucide-react";
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import {
@@ -51,33 +51,23 @@ const ImagePage = () => {
 
   const [images, setImages] = useState<string[]>([]);
 
-  // useEffect(() => {
-  //   setImages((current) => [
-  //     ...current,
-  //     "https://replicate.delivery/pbxt/2VMeFNjbLg0qYS7Blptlu7CEC2cckQqmVOfEiIpgUVlNEfziA/out-0.png",
-  //     "https://replicate.delivery/pbxt/BfYZYDVgAS1BYavXwoLlJZeIuiF9jsk0tdbd6erWeJi5v9nFB/out-0.png",
-  //     "https://pbxt.replicate.delivery/vVQsffF31Mlk1ktZNDeXF2sWiJuOkev9QSP6KxxwuZQN98nFB/out-0.png"
-  //   ]);
-  // }, []);
-
   const { user } = useUser();
-  console.log(user);
 
-  const cookieName = `imageURLs-${user?.id}`;
+  // const cookieName = `imageURLs-${user?.id}`;
 
-  useEffect(() => {
-    // setCookie(cookieName, "https://replicate.delivery/pbxt/2VMeFNjbLg0qYS7Blptlu7CEC2cckQqmVOfEiIpgUVlNEfziA/out-0.png");
+  // useEffect(() => {
+  //   // setCookie(cookieName, "https://replicate.delivery/pbxt/2VMeFNjbLg0qYS7Blptlu7CEC2cckQqmVOfEiIpgUVlNEfziA/out-0.png");
 
-    const storedURLs = getCookie(cookieName);
-    if (typeof storedURLs === "string") {
-      try {
-        const parsedData = JSON.parse(storedURLs);
-        setImages(parsedData);
-      } catch (error) {
-        console.error("Error parsing cookie data:", error);
-      }
-    }
-  }, [cookieName]); // Empty dependency array ensures this runs only once when the component mounts
+  //   const storedURLs = getCookie(cookieName);
+  //   if (typeof storedURLs === "string") {
+  //     try {
+  //       const parsedData = JSON.parse(storedURLs);
+  //       setImages(parsedData);
+  //     } catch (error) {
+  //       console.error("Error parsing cookie data:", error);
+  //     }
+  //   }
+  // }, [cookieName]); // Empty dependency array ensures this runs only once when the component mounts
 
   const form = useForm<z.infer<typeof formSchema>>({
     resolver: zodResolver(formSchema),
@@ -94,10 +84,12 @@ const ImagePage = () => {
   const isLoading = form.formState.isSubmitting;
   console.log(images);
 
-  const defaultImages = [
+  const defaultImages = useMemo(() => [
     "https://replicate.delivery/pbxt/BfYZYDVgAS1BYavXwoLlJZeIuiF9jsk0tdbd6erWeJi5v9nFB/out-0.png",
-    "https://oaidalleapiprodscus.blob.core.windows.net/private/org-6J3GqinzRysugI68sdSkKdnW/user-YT1l2mTbxtkOpMHDZy0HsdQD/img-svsuOfCgRUnKjlBWWtGHNlYi.png?st=2023-08-14T15%3A37%3A13Z&se=2023-08-14T17%3A37%3A13Z&sp=r&sv=2021-08-06&sr=b&rscd=inline&rsct=image/png&skoid=6aaadede-4fb3-4698-a8f6-684d7786b067&sktid=a48cca56-e6da-484e-a814-9c849652bcb3&skt=2023-08-13T17%3A21%3A45Z&ske=2023-08-14T17%3A21%3A45Z&sks=b&skv=2021-08-06&sig=CpEnsYwkYIK9BSCRUQE1qMnY9WaBZ3khCCAgLVKCmKQ%3D",
-  ];
+    "https://pbxt.replicate.delivery/eJOi4t0iCAznLySO0ey21gJULUrUvtO9BHlm2JMnhCAPCNaRA/out-0.png",
+    "https://pbxt.replicate.delivery/YnAuv88sXu67PVY3qvETVG4sQRySwbjzYK40sJipT9mPPjWE/out-0.png",
+  ], []);
+  
 
   const combineUniqueImages = (
     newImages: string[],
@@ -112,36 +104,53 @@ const ImagePage = () => {
     return Array.from(combinedSet);
   };
 
+  useEffect(() => {
+    async function fetchImages() {
+      try {
+        const response = await axios.get('api/image');
+        if (response.data && Array.isArray(response.data.images)) {
+          setImages((prevImages) => {
+            // Combine the retrieved images with default ones to avoid duplicates
+            return combineUniqueImages(response.data.images, prevImages, defaultImages);
+          });
+        }
+      } catch (error) {
+        console.error('Failed to fetch images:', error);
+      }
+    }
+  
+    if (user?.id) {
+      fetchImages();
+    }
+  }, [user?.id, defaultImages]);
+  
+
   const onSubmit = async (data: z.infer<typeof formSchema>) => {
     try {
-      // setImages([]);
-      console.log(data);
-
+      let response;
+  
       if (data.model === "1") {
-        const response = await axios.post("/api/image/dalle", data);
-        const urls = response.data.map((image: { url: string }) => image.url);
-
-        const combinedURLs = combineUniqueImages(urls, images, defaultImages);
-
-        setImages(combinedURLs);
-        setCookie(cookieName, JSON.stringify(combinedURLs));
-        toast.success("Images generated successfully");
-        form.reset();
+        response = await axios.post("/api/image/dalle", data);
       } else {
-        const response = await axios.post("/api/image/stability", data);
-        const url = response?.data[0];
-
-        const combinedURLs = combineUniqueImages([url], images, defaultImages);
-
-        setCookie(cookieName, JSON.stringify(combinedURLs));
-        setImages(combinedURLs);
-        toast.success("Images generated successfully");
+        response = await axios.post("/api/image/stability", data);
       }
-
-      // const urls = ["https://replicate.delivery/pbxt/vVQsffF31Mlk1ktZNDeXF2sWiJuOkev9QSP6KxxwuZQN98nFB/out-0.png", "https://replicate.delivery/pbxt/2VMeFNjbLg0qYS7Blptlu7CEC2cckQqmVOfEiIpgUVlNEfziA/out-0.png"]
-
-      // setCookie(cookieName ,urls);
-      // toast.success("cookies set")
+  
+      const newUrls = data.model === "1" 
+        ? response.data.map((image: { url: string }) => image.url)
+        : [response?.data[0]];
+  
+      // Save the URLs to the database
+      await axios.post('/api/image', {
+        user_id: user?.id,
+        urls: newUrls
+      });
+  
+      // Combine new URLs with existing ones
+      setImages((prevImages) => combineUniqueImages(newUrls, prevImages, defaultImages));
+  
+      toast.success("Images generated successfully");
+      form.reset();
+  
     } catch (error: any) {
       if (error?.response?.status === 402) {
         toast.error(
@@ -156,6 +165,52 @@ const ImagePage = () => {
       form.reset();
     }
   };
+  
+
+  // const onSubmit = async (data: z.infer<typeof formSchema>) => {
+  //   try {
+  //     // setImages([]);
+  //     console.log(data);
+
+  //     if (data.model === "1") {
+  //       const response = await axios.post("/api/image/dalle", data);
+  //       const urls = response.data.map((image: { url: string }) => image.url);
+
+  //       const combinedURLs = combineUniqueImages(urls, images, defaultImages);
+
+  //       setImages(combinedURLs);
+  //       setCookie(cookieName, JSON.stringify(combinedURLs));
+  //       toast.success("Images generated successfully");
+  //       form.reset();
+  //     } else {
+  //       const response = await axios.post("/api/image/stability", data);
+  //       const url = response?.data[0];
+
+  //       const combinedURLs = combineUniqueImages([url], images, defaultImages);
+
+  //       setCookie(cookieName, JSON.stringify(combinedURLs));
+  //       setImages(combinedURLs);
+  //       toast.success("Images generated successfully");
+  //     }
+
+  //     // const urls = ["https://replicate.delivery/pbxt/vVQsffF31Mlk1ktZNDeXF2sWiJuOkev9QSP6KxxwuZQN98nFB/out-0.png", "https://replicate.delivery/pbxt/2VMeFNjbLg0qYS7Blptlu7CEC2cckQqmVOfEiIpgUVlNEfziA/out-0.png"]
+
+  //     // setCookie(cookieName ,urls);
+  //     // toast.success("cookies set")
+  //   } catch (error: any) {
+  //     if (error?.response?.status === 402) {
+  //       toast.error(
+  //         "You have used up your Mavic free limit. Pls upgrade to continue"
+  //       );
+  //       proModal.onOpen();
+  //     } else {
+  //       toast.error("Something went wrong.");
+  //     }
+  //   } finally {
+  //     router.refresh();
+  //     form.reset();
+  //   }
+  // };
 
   return (
     <div>
@@ -350,6 +405,10 @@ const ImagePage = () => {
               </Card>
             ))}
           </div>
+        </div>
+
+        <div className="m-auto my-4 mx-2 py-6 flex items-center">
+          <p className="m-auto mt-2 text-sm text-muted-foreground"> Some Previously Generated examples </p>
         </div>
       </div>
     </div>

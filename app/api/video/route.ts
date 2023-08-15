@@ -37,6 +37,7 @@ export async function POST(req: Request) {
         {
           input: {
             prompt,
+            negative_propmt: "very blue, dust, noisy, washed out, ugly, distorted, broken"
           }
         }
     );

@@ -69,6 +69,36 @@ model Message {
   @@index([companionId])
 }
 
+model Photos {
+  id         String   @id @default(cuid())
+  userId     String   
+  src        String
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+}
+
+model Cartoons {
+  id         String   @id @default(cuid())
+  userId     String   
+  src        String
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+}
+
+model Musics {
+  id         String   @id @default(cuid())
+  userId     String   
+  src        String
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+}
+model Videos {
+  id         String   @id @default(cuid())
+  userId     String   
+  src        String
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+}
 
 enum Role {
   user

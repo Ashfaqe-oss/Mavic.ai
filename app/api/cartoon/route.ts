@@ -44,7 +44,7 @@ export async function POST(req: Request) {
     if(!isPro) {
         await incrementApiLimit()
     }
-    console.log(response)
+    // console.log(response)
 
     return NextResponse.json(response);
   } catch (err) {

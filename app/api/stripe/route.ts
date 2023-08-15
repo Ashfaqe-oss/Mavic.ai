@@ -49,7 +49,7 @@ export async function GET() {
               name: "Mavic Pro",
               description: "Unlimited AI Generations",
             },
-            unit_amount: 24000,
+            unit_amount: 2400,
             recurring: {
               interval: "month",
             },
