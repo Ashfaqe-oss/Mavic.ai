@@ -31,12 +31,12 @@ export const Companions = ({ data }: CompanionsProps) => {
     )
   }
   return (
-    <div className="grid grid-cols-2  sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4 pb-10">
+    <div className="grid grid-cols-2  md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4 pb-10">
       {data.map((item) => (
         <Card key={item.name} className="bg-primary/10 rounded-xl cursor-pointer hover:opacity-75 transition border-0">
           <Link href={`/chat/${item.id}`}>
             <CardHeader className="flex items-center justify-center text-center text-muted-foreground">
-              <div className="relative w-32 h-32">
+              <div className="relative w-40 h-40">
                 <Image
                   src={item.src}
                   fill

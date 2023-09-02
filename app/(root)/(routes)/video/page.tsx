@@ -46,9 +46,6 @@ const VideoPage = () => {
   const defaultVideos = useMemo(
     () => [
       // Add your default video URLs here if you have any
-      "https://pbxt.replicate.delivery/F8m7Kop7VKItPd6e0NeiZPCeF4A3obyjORpZ5KzbVzLbWi0iA/output-0.mp4",
-      "https://replicate.delivery/pbxt/mxkex5K3JZUKPKlni9KjpKKOY9v1sNKxechcErwtkVOxfi0iA/output-0.mp4",
-      "https://pbxt.replicate.delivery/l8iVjqoRMlqNAFax1GOiouailR5ohit6DEiVrT9wFTFemItIA/output-0.mp4",
     ],
     []
   );
@@ -154,13 +151,15 @@ const VideoPage = () => {
                       <Input
                         className="border-0 outline-none focus-visible:ring-0 focus-visible:ring-transparent bg-primary/10 pl-4 max-w-4xl"
                         disabled={isLoading}
-                        placeholder="Girl dancing on a bridge."
+                        placeholder="a cat | a dog | a horse"
                         {...field}
                       />
                     </FormControl>
                     <FormDescription>
-                      Briefly describe of how and what you want your video to
-                      be/have
+                      Generate Awesome videos that transition between images !
+                    </FormDescription>
+                    <FormDescription>
+                      Provide prompt only as the given example, using | and only limit to 2 - 4 characters for better results
                     </FormDescription>
                     <FormMessage />
                   </FormItem>

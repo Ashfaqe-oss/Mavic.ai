@@ -1,102 +1,110 @@
+// Importing necessary libraries and modules
 import { rateLimit } from "@/lib/rate-limit";
 import { currentUser } from "@clerk/nextjs";
 import { NextResponse } from "next/server";
 import { Companion } from '@prisma/client';
-import prismadb from "@/lib/prismadb";
-import { MemoryManager } from "@/lib/memory";
+import prismadb from "@/lib/prismadb";  // Database client based on Prisma
+import { MemoryManager } from "@/lib/memory";  // Memory management for chatbot
 import { StreamingTextResponse, LangChainStream } from "ai";
-import { Replicate } from "langchain/llms/replicate";
-import { CallbackManager } from "langchain/callbacks";
-import { checkSubscription } from "@/lib/subscription";
-import { incrementApiLimit } from "@/lib/api-limit";
+import { Replicate } from "langchain/llms/replicate";  // Replicate model from langchain
+import { CallbackManager } from "langchain/callbacks";  // Callback manager from langchain
+import { checkSubscription } from "@/lib/subscription";  // Utility to check if a user has a pro subscription
+import { incrementApiLimit } from "@/lib/api-limit";  // Utility to increment the API limit
 
+// POST method to handle incoming chat requests
 export async function POST(
-  request: Request,
-  { params }: { params: { chatId: string } }
+  request: Request,  // Incoming request
+  { params }: { params: { chatId: string } }  // URL parameters
 ) {
   try {
+    // Extract the chat prompt from the incoming request
     const { prompt } = await request.json();
+    // Fetch the current user details
     const user = await currentUser();
 
-    
+    // Check if the user has a pro subscription
     const isPro = await checkSubscription();
 
+    // If user data is missing or incomplete, return an unauthorized response
     if (!user || !user.firstName || !user.id) {
       return new NextResponse("Unauthorized", { status: 401 });
     }
 
-    const identifier = request.url + "-" + user.id; // to block one particular user
+    // Generate a unique identifier for rate limiting
+    const identifier = request.url + "-" + user.id;
 
+    // Check rate limits for the user
     const { success } = await rateLimit(identifier);
 
+    // If rate limit exceeded, return a rate limit response
     if (!success) {
       return new NextResponse("Rate limit exceeded", { status: 429 });
     }
 
+    // Update the companion's message in the database
     const companion = await prismadb.companion.update({
-        where: {
-            id: params.chatId
+      where: {
+        id: params.chatId
+      },
+      data: {
+        messages: {
+          create: {
+            content: prompt,
+            role: "user",
+            userId: user.id,
+          },
         },
-        data: {
-            messages: {
-              create: {
-                content: prompt,
-                role: "user",
-                userId: user.id,
-              },
-            },
-          }
-    })
+      }
+    });
 
+    // If the companion is not found in the database, return a 404 response
     if (!companion) {
-        return new NextResponse("Companion not found", { status: 404 });
+      return new NextResponse("Companion not found", { status: 404 });
     }
 
-    //  generate constants and filenames for memory manager
-    
+    // Generate constants and filenames for the Memory Manager
     const name = companion.id;
     const companion_file_name = name + ".txt";
 
+    // Define the companion key for memory operations
     const companionKey = {
-        companionName: name!,
-        userId: user.id,
-        modelName: "llama2-13b",
+      companionName: name!,
+      userId: user.id,
+      modelName: "llama2-13b",
     };
-    
+
+    // Get the singleton instance of the Memory Manager
     const memoryManager = await MemoryManager.getInstance();
 
-    //go n read if any memory for this companion already exists
+    // Fetch existing records (if any) for this companion from Redis
     const records = await memoryManager.readLatestHistory(companionKey);
 
-    // if no records we have to seed the memory manager with example conversation chat history
+    // If there are no previous records, seed the Memory Manager with example chat history
     if (records.length === 0) {
-      await memoryManager.seedChatHistory(companion.seed, "\n\n", companionKey); /// adds line by line
+      await memoryManager.seedChatHistory(companion.seed, "\n\n", companionKey);
     }
 
-    // write to vector store
+    // Write the current chat prompt to the vector store
     await memoryManager.writeToHistory("User: " + prompt + "\n", companionKey);
 
-    // Query Pinecone
-
+    // Fetch the recent chat history for the companion
     const recentChatHistory = await memoryManager.readLatestHistory(companionKey);
 
-    // Right now the preamble is included in the similarity search, but that
-    // shouldn't be an issue
-
+    // Search for similar documents in the vector store based on the recent chat history
     const similarDocs = await memoryManager.vectorSearch(
-        recentChatHistory,
-        companion_file_name
+      recentChatHistory,
+      companion_file_name
     );
 
+    // Extract relevant chat history from the similar documents
     let relevantHistory = "";
     if (!!similarDocs && similarDocs.length !== 0) {
       relevantHistory = similarDocs.map((doc) => doc.pageContent).join("\n");
     }
 
-    //langchain handlers
-
+    // Initialize langchain handlers
     const { handlers } = LangChainStream();
-    // Call Replicate for inference
+    // Initialize the Replicate model for inference
     const model = new Replicate({
       model:
         "a16z-infra/llama-2-13b-chat:df7690f1994d94e96ad9d568eac121aecf50684a0b0963b25a41cc40061269e5",
@@ -107,39 +115,42 @@ export async function POST(
       callbackManager: CallbackManager.fromHandlers(handlers),
     });
 
-    
-    // Turn verbose on for debugging
+    // Turn on verbose mode for debugging
     model.verbose = true;
 
+    // Construct the input for the Replicate model and call it for inference
     const resp = String(
       await model
         .call(
           `
-        ONLY generate plain sentences without prefix of who is speaking. DO NOT use ${companion.name}: prefix. 
+    ONLY generate plain sentences without prefix of who is speaking. DO NOT use ${companion.name}: prefix. 
 
-        ${companion.instructions}
+    ${companion.instructions}
 
-        Below are relevant details about ${companion.name}'s past and the conversation you are in.
-        ${relevantHistory}
+    Below are relevant details about ${companion.name}'s past and the conversation you are in.
+    ${relevantHistory}
 
-
-        ${recentChatHistory}\n${companion.name}:`
+    ${recentChatHistory}\n${companion.name}:`
         )
         .catch(console.error)
     );
 
+    // Clean and process the model response
     const cleaned = resp.replaceAll(",", "");
     const chunks = cleaned.split("\n");
     const response = chunks[0];
 
+    // Write the model response to the Memory Manager
     await memoryManager.writeToHistory("" + response.trim(), companionKey);
-    
-    //readale stream
+
+    // Convert the response to a readable stream
     var Readable = require("stream").Readable;
 
     let s = new Readable();
     s.push(response);
     s.push(null);
+
+    // If the response is valid, update the chat history in the database
     if (response !== undefined && response.length > 1) {
       memoryManager.writeToHistory("" + response.trim(), companionKey);
 
@@ -159,13 +170,15 @@ export async function POST(
       });
     }
 
-    if(!isPro) {
-        await incrementApiLimit();
+    // If the user is not a pro subscriber, increment the API usage limit
+    if (!isPro) {
+      await incrementApiLimit();
     }
-    
+
+    // Return the model response as a streaming response
     return new StreamingTextResponse(s);
 
-  } catch (error) {
+  } catch (error) {  // Catch any errors and return a 500 Internal Server Error response
     return new NextResponse("Internal Server Error", { status: 500 });
   }
 }
