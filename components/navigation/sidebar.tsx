@@ -39,60 +39,17 @@ const sidebar = ({
       pro: false,
     },
     {
-      label: "Dashboard",
-      icon: LayoutDashboard,
-      href: "/dashboard",
-      color: "text-sky-500",
-      pro: true,
-    },
-    {
-      icon: Plus,
-      href: "/companion/new",
-      label: "Create",
-      pro: true,
-    },
-    {
-      label: "Companion",
+      label: "Campaigns",
       icon: MessageSquare,
-      href: "/companion",
+      href: "/campaigns",
       color: "text-violet-500",
       pro: true,
     },
     {
-      label: "Music",
-      icon: Music,
-      color: "text-emerald-500",
-      href: "/music",
-      pro: true,
-    },
-    {
-      label: "Video",
-      icon: VideoIcon,
-      color: "text-orange-700",
-      href: "/video",
-      pro: true,
-    },
-
-    {
-      label: "Image",
-      icon: ImageIcon,
-      color: "text-pink-700",
-      href: "/image",
-      pro: true,
-    },
-
-    {
-      label: "Code",
-      icon: Code,
-      color: "text-green-700",
-      href: "/code",
-      pro: true,
-    },
-    {
-      label: "Cartoon",
-      icon: Carrot,
-      color: "text-pink-700",
-      href: "/cartoon",
+      label: "Creators",
+      icon: LayoutDashboard,
+      href: "/creators",
+      color: "text-sky-500",
       pro: true,
     },
     {
@@ -123,7 +80,7 @@ const sidebar = ({
           ))}
         </div>
       </div>
-      {!isPro && <FreeCounter apiLimitCount={apiLimitCount} isPro={isPro} />}
+      {/* {!isPro && <FreeCounter apiLimitCount={apiLimitCount} isPro={isPro} />} */}
     </div>
   );
 };

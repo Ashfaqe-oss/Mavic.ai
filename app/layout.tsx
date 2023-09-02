@@ -11,8 +11,8 @@ import { checkSubscription } from "@/lib/subscription";
 const inter = Inter({ subsets: ["latin"] });
 
 export const metadata: Metadata = {
-  title: "Mavic.ai",
-  description: "Generates Ai",
+  title: "BYOB",
+  description: "Build your own Business",
 };
 
 export default async function RootLayout({
@@ -32,11 +32,11 @@ export default async function RootLayout({
             {" "}
             {/* forcedTheme="dark" --> available */}
             <ToasterProvider />
-            {
+            {/* {
               !isPro && (
                 <ModalProvider />
               )
-            }
+            } */}
             {children}
           </ThemeProvider>
         </body>

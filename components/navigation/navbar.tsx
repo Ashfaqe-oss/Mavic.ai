@@ -41,16 +41,16 @@ const navbar = ({
               font.className
             )}
           >
-            Mavic.ai
+            BYOB
           </h1>
         </Link>
       </div>
       <div className="flex items-center gap-x-3">
-        {!isPro && (
+        {/* {!isPro && (
           <Button onClick={proModal.onOpen} size="sm" variant="premium">
             Upgrade <Sparkles className="w-4 h-4 fill-white text-white ml-2" />
           </Button>
-        )}
+        )} */}
         <ModeToggle />
         <UserButton afterSignOutUrl="/" />
       </div>
